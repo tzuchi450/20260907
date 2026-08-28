@@ -4,40 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>「慈濟一甲子・感恩里長情」茶會出席回覆單</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background-color: #f6f5f0;
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 24px 24px;
             color: #2c3e50;
         }
-        .font-serif-tc {
+        .serif-title {
             font-family: 'Noto Serif TC', serif;
         }
-        .card-bg {
-            background: linear-gradient(to bottom, #ffffff, #fcfbf9);
-            border: 1px solid #e6dec5;
+        /* 典雅金線框裝飾 */
+        .gold-border-card {
+            border: 1px solid #d4af37;
+            box-shadow: 0 15px 35px -5px rgba(22, 41, 85, 0.15), 0 0 0 1px rgba(212, 175, 55, 0.3) inset;
         }
     </style>
 </head>
-<body>
+<body class="text-slate-800 min-h-screen flex flex-col justify-between">
+
     <div id="root"></div>
 
     <script type="text/babel">
-        function App() {
-            const [submitted, setSubmitted] = React.useState(false);
-            const [isSubmitting, setIsSubmitting] = React.useState(false);
-            
-            // 表單連動與欄位狀態
-            const [selectedDistrict, setSelectedDistrict] = React.useState("");
-            const [selectedVillage, setSelectedVillage] = React.useState("");
-            const [transportMode, setTransportMode] = React.useState("");
+        const { useState } = React;
 
-            // 完整對應 Google 表單的里別資料庫
+        function App() {
+            const [submitted, setSubmitted] = useState(false);
+            const [loading, setLoading] = useState(false);
+            
+            // 下拉連動與交通選項狀態
+            const [selectedDistrict, setSelectedDistrict] = useState('');
+            const [selectedVillage, setSelectedVillage] = useState('');
+            const [transportMode, setTransportMode] = useState('');
+
+            // 輸入欄位狀態與錯誤提示
+            const [name, setName] = useState('');
+            const [phone, setPhone] = useState('');
+            const [nameError, setNameError] = useState('');
+            const [phoneError, setPhoneError] = useState('');
+
+            // 行政區與里別對應資料庫
             const districtVillages = {
                 "三重區": [
                     "二重里", "三重里", "三安里", "三和里", "三民里", "大同里", "大安里", "大有里", "大園里", "大智里", 
@@ -65,242 +81,350 @@
                 ]
             };
 
-            // 🔗 官方 Google 表單對應設定
+            // 官方 Google 表單對應設定
             const GOOGLE_FORM_ACTION = "https://docs.google.com/forms/u/0/d/e/1FAIpQLSc9JeeRlbW0WuHfqHvzXtDFoF93E_zTgoPmuwj99oNmWD9mJw/formResponse";
             
             const formEntries = {
-                district: "entry.696777273",   // 行政區
-                village: "entry.2136849777",   // 里別 (三重區範例代號，隨後端表單動態切換)
-                attendance: "entry.1009888297",// 出席狀況
-                name: "entry.702390885",       // 出席者姓名
-                phone: "entry.1503687082",     // 聯絡電話
-                totalPeople: "entry.570526933",// 出席總人數
-                transport: "entry.1794182272", // 前往交通方式
-                carPlate: "entry.1669492461"   // 汽車車牌號碼
+                district: "entry.696777273",   
+                attendance: "entry.1009888297",
+                name: "entry.702390885",       
+                phone: "entry.1503687082",     
+                totalPeople: "entry.570526933",
+                transport: "entry.1794182272", 
+                carPlate: "entry.1669492461"   
             };
 
-            // 根據所選行政區取得對應的 Google 表單 entry ID
             const getVillageEntryName = () => {
                 if (selectedDistrict === "蘆洲區") return "entry.2102008597";
                 if (selectedDistrict === "五股區") return "entry.1628460829";
-                return "entry.2136849777"; // 預設三重區
+                return "entry.2136849777"; 
+            };
+
+            // 姓名驗證
+            const handleNameChange = (e) => {
+                const val = e.target.value;
+                setName(val);
+                if (val.trim().length === 0) {
+                    setNameError('請輸入出席者姓名');
+                } else if (val.trim().length < 2) {
+                    setNameError('姓名請至少輸入 2 個字元');
+                } else {
+                    setNameError('');
+                }
+            };
+
+            // 電話格式驗證（只能是純數字，且必須為 09 開頭的手機號碼 10 碼）
+            const handlePhoneChange = (e) => {
+                const val = e.target.value;
+                // 過濾掉非數字字元，禁止輸入 - 或英文字母
+                const numericVal = val.replace(/\D/g, '');
+                setPhone(numericVal);
+
+                // 檢查是否為 09 開頭且總共 10 碼的純手機號碼
+                const mobileRegex = /^09\d{8}$/;
+                
+                if (numericVal.length === 0) {
+                    setPhoneError('請輸入聯絡電話');
+                } else if (!numericVal.startsWith('09')) {
+                    setPhoneError('聯絡電話必須以 09 開頭（不接受市話）');
+                } else if (numericVal.length !== 10) {
+                    setPhoneError(`手機號碼需為 10 碼（目前 ${numericVal.length} 碼）`);
+                } else {
+                    setPhoneError('');
+                }
             };
 
             const handleSubmit = (e) => {
-                setIsSubmitting(true);
+                // 再次檢查驗證
+                if (!name.trim() || nameError || !phone.trim() || phoneError) {
+                    e.preventDefault();
+                    alert('請確認姓名與手機號碼格式是否正確。');
+                    return;
+                }
+
+                setLoading(true);
                 setTimeout(() => {
-                    setIsSubmitting(false);
+                    setLoading(false);
                     setSubmitted(true);
                 }, 1000);
             };
 
             return (
-                <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center">
-                    <div className="max-w-xl w-full card-bg rounded-2xl shadow-xl overflow-hidden p-6 sm:p-10 relative">
+                <div className="flex flex-col min-h-screen justify-between py-8 px-4 sm:px-6">
+                    <div className="max-w-2xl w-full mx-auto space-y-8">
                         
-                        {/* 標題與說明區 */}
-                        <div className="text-center mb-8 border-b border-amber-900/10 pb-6">
-                            <h1 className="font-serif-tc text-3xl sm:text-4xl font-bold text-[#162955] tracking-wide mb-4">
-                                「慈濟一甲子・感恩里長情」茶會出席回覆單
-                            </h1>
-                            <div className="text-sm sm:text-base text-gray-700 leading-relaxed px-2 text-justify sm:text-center space-y-2">
-                                <p>感恩各里里長長年對三重慈濟園區的疼惜與護持。適逢慈濟成立一甲子（60年），特備清茶與茶食，誠摯邀請各位里長蒞臨相聚，共敘情誼。</p>
-                                <div className="bg-[#f4efe4]/60 border border-amber-900/20 rounded-xl p-4 text-sm text-gray-800 space-y-1.5 text-left mt-3">
-                                    <div>🔹 <b>日期：</b>2026年9月7日（星期一）</div>
-                                    <div>🔹 <b>報到時間：</b>下午 1:30</div>
-                                    <div>🔹 <b>活動時間：</b>下午 2:00 ～ 4:00</div>
-                                    <div>🔹 <b>地點：</b>三重慈濟園區・國議廳</div>
-                                </div>
-                                <p className="pt-2 text-xs text-amber-900/80 font-medium">懇請填寫下方資訊回覆出席狀況，以利現場清茶與座位安排，感恩！</p>
+                        {/* 邀請函主視覺風格卡片 */}
+                        <div className="bg-[#fcfbf9] text-slate-800 rounded-3xl p-6 sm:p-10 gold-border-card relative overflow-hidden">
+                            
+                            {/* 水墨蓮花浮水印裝飾 */}
+                            <div className="absolute top-0 right-0 opacity-10 pointer-events-none transform translate-x-12 -translate-y-12">
+                                <svg width="260" height="260" viewBox="0 0 200 200" fill="#162955">
+                                    <path d="M100 20C120 60 180 80 180 100C180 120 120 140 100 180C80 140 20 120 20 100C20 80 80 60 100 20Z" />
+                                </svg>
                             </div>
-                        </div>
 
-                        {/* 表單主體 */}
-                        {!submitted ? (
-                            <div>
-                                <div className="mb-6 text-center">
-                                    <h2 className="font-serif-tc text-lg font-bold text-[#162955]">請填寫以下回覆資訊</h2>
-                                    <p className="text-xs text-red-500 mt-1">* 表示必填問題</p>
+                            {/* 頂部標語 */}
+                            <div className="text-center space-y-2 mb-8 relative z-10">
+                                <div className="inline-flex items-center space-x-3 text-xs sm:text-sm tracking-widest text-[#162955] font-medium uppercase">
+                                    <span className="h-[1px] w-8 bg-[#d4af37]"></span>
+                                    <span>感恩相聚 · 清茶傳情</span>
+                                    <span className="h-[1px] w-8 bg-[#d4af37]"></span>
+                                </div>
+                                <h1 className="serif-title text-3xl sm:text-4xl font-bold tracking-wider text-[#162955]">
+                                    「慈濟一甲子・感恩里長情」茶會出席回覆單
+                                </h1>
+                                <div className="text-[#d4af37] text-2xl pt-1">🪷</div>
+                            </div>
+
+                            {/* 內文簡介與活動資訊 */}
+                            <div className="bg-[#f7f5ef] rounded-2xl p-5 sm:p-6 mb-8 border border-[#e8e2d2] text-sm sm:text-base leading-relaxed text-slate-700 space-y-4 relative z-10 shadow-sm">
+                                <p className="text-justify">
+                                    感恩各里里長長年對三重慈濟園區的疼惜與護持。適逢慈濟成立一甲子（60年），特備清茶與茶食，誠摯邀請各位里長蒞臨相聚，共敘情誼。
+                                </p>
+
+                                {/* 活動細節清單 */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-sm text-[#162955] font-medium">
+                                    <div className="flex items-center space-x-3 bg-white/80 p-3.5 rounded-xl border border-[#e8e2d2]">
+                                        <span className="text-lg">📅</span>
+                                        <div>
+                                            <p className="text-xs text-slate-500">日期</p>
+                                            <p>2026年9月7日 (星期一)</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-3 bg-white/80 p-3.5 rounded-xl border border-[#e8e2d2]">
+                                        <span className="text-lg">⏰</span>
+                                        <div>
+                                            <p className="text-xs text-slate-500">時間</p>
+                                            <p>下午 2:00 ~ 4:00 (1:30 報到)</p>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-1 sm:col-span-2 flex items-center space-x-3 bg-white/80 p-3.5 rounded-xl border border-[#e8e2d2]">
+                                        <span className="text-lg">📍</span>
+                                        <div>
+                                            <p className="text-xs text-slate-500">地點</p>
+                                            <p>三重慈濟園區 · 國議廳</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 填寫表單區塊 */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-[#e8e2d2] p-6 sm:p-8 relative z-10">
+                                <div className="border-b border-slate-100 pb-4 mb-6">
+                                    <h2 className="serif-title text-xl font-bold text-[#162955]">
+                                        ✍️ 填寫回覆資訊
+                                    </h2>
+                                    <p className="text-xs text-rose-500 mt-1">
+                                        * 表示必填問題，懇請填寫以利席次與茶點統籌。
+                                    </p>
                                 </div>
 
-                                <iframe name="hidden_iframe" id="hidden_iframe" style={{display: 'none'}}></iframe>
-
-                                <form 
-                                    action={GOOGLE_FORM_ACTION} 
-                                    method="POST" 
-                                    target="hidden_iframe"
-                                    onSubmit={handleSubmit}
-                                    className="space-y-6"
-                                >
-                                    {/* 1. 行政區 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            行政區 <span className="text-red-500">*</span>
-                                        </label>
-                                        <select 
-                                            name={formEntries.district} 
-                                            value={selectedDistrict}
-                                            onChange={(e) => {
-                                                setSelectedDistrict(e.target.value);
-                                                setSelectedVillage("");
-                                            }}
-                                            required 
-                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm"
-                                        >
-                                            <option value="">選擇</option>
-                                            <option value="三重區">三重區</option>
-                                            <option value="五股區">五股區</option>
-                                            <option value="蘆洲區">蘆洲區</option>
-                                        </select>
-                                    </div>
-
-                                    {/* 2. 里別 (動態連動) */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            {selectedDistrict ? selectedDistrict : "里別"} <span className="text-red-500">*</span>
-                                        </label>
-                                        <select 
-                                            name={getVillageEntryName()} 
-                                            value={selectedVillage}
-                                            onChange={(e) => setSelectedVillage(e.target.value)}
-                                            required 
-                                            disabled={!selectedDistrict}
-                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                        >
-                                            <option value="">{selectedDistrict ? "選擇" : "請先選擇行政區"}</option>
-                                            {selectedDistrict && districtVillages[selectedDistrict]?.map((village, idx) => (
-                                                <option key={idx} value={village}>{village}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* 3. 出席狀況 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-2">
-                                            出席狀況 <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="space-y-2">
-                                            {["里長親自出席", "委派代表出席", "不克出席"].map((status, idx) => (
-                                                <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
-                                                    <input type="radio" name={formEntries.attendance} value={status} required className="mr-3 text-[#162955] focus:ring-[#162955]" /> 
-                                                    {status}
-                                                </label>
-                                            ))}
+                                {!submitted ? (
+                                    <form 
+                                        action={GOOGLE_FORM_ACTION} 
+                                        method="POST" 
+                                        target="hidden_iframe"
+                                        onSubmit={handleSubmit}
+                                        className="space-y-6"
+                                    >
+                                        {/* 行政區 */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                                行政區 <span className="text-rose-500">*</span>
+                                            </label>
+                                            <select 
+                                                name={formEntries.district} 
+                                                value={selectedDistrict}
+                                                onChange={(e) => {
+                                                    setSelectedDistrict(e.target.value);
+                                                    setSelectedVillage('');
+                                                }}
+                                                required 
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#162955] focus:outline-none transition bg-slate-50/50 text-sm"
+                                            >
+                                                <option value="">選擇</option>
+                                                <option value="三重區">三重區</option>
+                                                <option value="五股區">五股區</option>
+                                                <option value="蘆洲區">蘆洲區</option>
+                                            </select>
                                         </div>
-                                    </div>
 
-                                    {/* 4. 出席者姓名 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            出席者姓名 <span className="text-xs text-gray-500">(若為代表出席，請填寫代表人姓名。)</span> <span className="text-red-500">*</span>
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            name={formEntries.name} 
-                                            required 
-                                            placeholder="您的回答" 
-                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm"
-                                        />
-                                    </div>
-
-                                    {/* 5. 聯絡電話 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            聯絡電話 (行動電話) <span className="text-red-500">*</span>
-                                        </label>
-                                        <input 
-                                            type="tel" 
-                                            name={formEntries.phone} 
-                                            required 
-                                            placeholder="您的回答" 
-                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm"
-                                        />
-                                    </div>
-
-                                    {/* 6. 出席總人數 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-2">
-                                            出席總人數（含里長/代表） <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="space-y-2">
-                                            {["1 人", "2 人", "3 人", "4 人以上", "0 人（不克出席）"].map((num, idx) => (
-                                                <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
-                                                    <input type="radio" name={formEntries.totalPeople} value={num} required className="mr-3 text-[#162955] focus:ring-[#162955]" /> 
-                                                    {num}
-                                                </label>
-                                            ))}
+                                        {/* 里別 (動態連動) */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                                {selectedDistrict ? selectedDistrict : "里別"} <span className="text-rose-500">*</span>
+                                            </label>
+                                            <select 
+                                                name={getVillageEntryName()} 
+                                                value={selectedVillage}
+                                                onChange={(e) => setSelectedVillage(e.target.value)}
+                                                required 
+                                                disabled={!selectedDistrict}
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#162955] focus:outline-none transition bg-slate-50/50 text-sm disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                            >
+                                                <option value="">{selectedDistrict ? "選擇" : "請先選擇上方行政區"}</option>
+                                                {selectedDistrict && districtVillages[selectedDistrict]?.map((village, idx) => (
+                                                    <option key={idx} value={village}>{village}</option>
+                                                ))}
+                                            </select>
                                         </div>
-                                    </div>
 
-                                    {/* 7. 前往交通方式 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-2">
-                                            前往交通方式 <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="space-y-2">
-                                            {["自行開車", "騎乘機車", "搭乘大眾運輸 / 步行"].map((mode, idx) => (
-                                                <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
-                                                    <input 
-                                                        type="radio" 
-                                                        name={formEntries.transport} 
-                                                        value={mode} 
-                                                        onChange={(e) => setTransportMode(e.target.value)}
-                                                        required 
-                                                        className="mr-3 text-[#162955] focus:ring-[#162955]" 
-                                                    /> 
-                                                    {mode}
-                                                </label>
-                                            ))}
+                                        {/* 出席狀況 */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                出席狀況 <span className="text-rose-500">*</span>
+                                            </label>
+                                            <div className="space-y-2.5">
+                                                {["里長親自出席", "委派代表出席", "不克出席"].map((status, idx) => (
+                                                    <label key={idx} className="flex items-center p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition text-sm text-slate-700">
+                                                        <input 
+                                                            type="radio" 
+                                                            name={formEntries.attendance} 
+                                                            value={status} 
+                                                            required 
+                                                            className="mr-3 accent-[#162955] scale-110" 
+                                                        /> 
+                                                        {status}
+                                                    </label>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {/* 8. 汽車車牌號碼 (若選擇自行開車時顯示) */}
-                                    {transportMode === "自行開車" && (
-                                        <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-200">
-                                            <label className="block text-sm font-medium text-[#162955] mb-1">
-                                                汽車車牌號碼 <span className="text-red-500">*</span>
+                                        {/* 出席者姓名 (帶驗證) */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                                出席者姓名 <span className="text-xs text-slate-400">(若為代表出席，請填寫代表人姓名)</span> <span className="text-rose-500">*</span>
                                             </label>
                                             <input 
                                                 type="text" 
-                                                name={formEntries.carPlate} 
+                                                name={formEntries.name} 
+                                                value={name}
+                                                onChange={handleNameChange}
                                                 required 
-                                                placeholder="請輸入車牌號碼以利安排車位" 
-                                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm"
+                                                placeholder="請輸入您的真實姓名" 
+                                                className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:outline-none transition bg-slate-50/50 text-sm ${nameError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-200 focus:ring-[#162955]'}`}
                                             />
+                                            {nameError && <p className="text-xs text-rose-500 mt-1 pl-1">{nameError}</p>}
                                         </div>
-                                    )}
 
-                                    <button 
-                                        type="submit" 
-                                        disabled={isSubmitting}
-                                        className="w-full py-3.5 px-4 bg-[#162955] hover:bg-[#112044] text-white font-medium rounded-xl shadow-lg transition duration-200 tracking-wider text-base mt-4"
-                                    >
-                                        {isSubmitting ? "正在送出回覆..." : "提交"}
-                                    </button>
-                                </form>
-                            </div>
-                        ) : (
-                            <div className="text-center py-12 space-y-4">
-                                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
-                                    ✓
-                                </div>
-                                <h3 className="font-serif-tc text-2xl font-bold text-[#162955]">感恩您的回覆</h3>
-                                <p className="text-gray-600 text-sm max-w-sm mx-auto">
-                                    您的出席回覆已順利送出。三重慈濟園區期待與您共敘一甲子之情！
-                                </p>
-                                <button 
-                                    onClick={() => setSubmitted(false)} 
-                                    className="mt-6 px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded-lg transition"
-                                >
-                                    填寫其他回覆
-                                </button>
-                            </div>
-                        )}
+                                        {/* 聯絡電話 (只接受 09 開頭純數字 10 碼) */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                                聯絡電話 (行動電話) <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input 
+                                                type="tel" 
+                                                maxLength="10"
+                                                name={formEntries.phone} 
+                                                value={phone}
+                                                onChange={handlePhoneChange}
+                                                required 
+                                                placeholder="請輸入 09 開頭的手機號碼（例：0912345678）" 
+                                                className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:outline-none transition bg-slate-50/50 text-sm ${phoneError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-200 focus:ring-[#162955]'}`}
+                                            />
+                                            {phoneError && <p className="text-xs text-rose-500 mt-1 pl-1">{phoneError}</p>}
+                                        </div>
 
-                        <div className="text-center mt-8 pt-4 border-t border-amber-900/10 text-xs text-gray-500">
-                            Google 並未認可或建立這項內容。 · 佛教慈濟慈善事業基金會 三重園區
+                                        {/* 出席總人數 */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                出席總人數（含里長/代表） <span className="text-rose-500">*</span>
+                                            </label>
+                                            <div className="space-y-2.5">
+                                                {["1 人", "2 人", "3 人", "4 人以上", "0 人（不克出席）"].map((num, idx) => (
+                                                    <label key={idx} className="flex items-center p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition text-sm text-slate-700">
+                                                        <input 
+                                                            type="radio" 
+                                                            name={formEntries.totalPeople} 
+                                                            value={num} 
+                                                            required 
+                                                            className="mr-3 accent-[#162955] scale-110" 
+                                                        /> 
+                                                        {num}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* 前往交通方式 */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                前往交通方式 <span className="text-rose-500">*</span>
+                                            </label>
+                                            <div className="space-y-2.5">
+                                                {["自行開車", "騎乘機車", "搭乘大眾運輸 / 步行"].map((mode, idx) => (
+                                                    <label key={idx} className="flex items-center p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition text-sm text-slate-700">
+                                                        <input 
+                                                            type="radio" 
+                                                            name={formEntries.transport} 
+                                                            value={mode} 
+                                                            onChange={(e) => setTransportMode(e.target.value)}
+                                                            required 
+                                                            className="mr-3 accent-[#162955] scale-110" 
+                                                        /> 
+                                                        {mode}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* 汽車車牌號碼 (連動顯示) */}
+                                        {transportMode === "自行開車" && (
+                                            <div className="bg-[#f7f5ef] p-4 rounded-xl border border-[#d4af37]/40 animate-fadeIn">
+                                                <label className="block text-sm font-medium text-[#162955] mb-1">
+                                                    汽車車牌號碼 <span className="text-rose-500">*</span>
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    name={formEntries.carPlate} 
+                                                    required 
+                                                    placeholder="例：ABC1234 (以利園區安排車位)" 
+                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#162955] focus:outline-none transition bg-white text-sm"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* 提交按鈕 */}
+                                        <button 
+                                            type="submit" 
+                                            disabled={loading}
+                                            className="w-full bg-[#162955] hover:bg-[#101e3d] text-white font-medium py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2 tracking-wider text-base mt-2"
+                                        >
+                                            {loading ? (
+                                                <span>資料傳送中...</span>
+                                            ) : (
+                                                <span>提交</span>
+                                            )}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <div className="text-center py-12 space-y-4">
+                                        <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-4xl shadow-inner border border-emerald-100">
+                                            ✓
+                                        </div>
+                                        <h2 className="serif-title text-2xl font-bold text-[#162955]">感恩您的回覆與護持！</h2>
+                                        <p className="text-slate-600 max-w-sm mx-auto text-sm leading-relaxed">
+                                            您的出席資料已成功送出。誠摯期盼在 9 月 7 日與您在三重慈濟園區相見，祝福您吉祥如意。
+                                        </p>
+                                        <button 
+                                            onClick={() => setSubmitted(false)}
+                                            className="mt-6 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition text-sm"
+                                        >
+                                            修改或填寫另一筆
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 底部版權 */}
+                            <div className="text-center pt-6 text-xs text-slate-500">
+                                <p>Google 並未認可或建立這項內容。 · 佛教慈濟慈善事業基金會 三重園區</p>
+                            </div>
+
                         </div>
 
+                        {/* 隱藏的 iframe 用於接收 Google 表單 POST，防止頁面跳轉 */}
+                        <iframe name="hidden_iframe" id="hidden_iframe" style={{display: 'none'}}></iframe>
                     </div>
                 </div>
             );
