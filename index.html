@@ -32,9 +32,7 @@
 
     <script type="text/babel">
         function App() {
-            const [submitted, setSubmitted] = React.useState(false);
-            
-            // 表單狀態
+            // 表單連動與欄位狀態
             const [selectedDistrict, setSelectedDistrict] = React.useState("");
             const [selectedVillage, setSelectedVillage] = React.useState("");
             const [transportMode, setTransportMode] = React.useState("");
@@ -89,11 +87,11 @@
                 carPlate: "entry.1669492461"   // 汽車車牌號碼
             };
 
-            // 對應 Google 表單中「里別」的三個不同題目的 entry ID
+            // 根據所選行政區取得對應的 Google 表單 entry ID
             const getVillageEntryName = () => {
                 if (selectedDistrict === "蘆洲區") return "entry.2102008597";
                 if (selectedDistrict === "五股區") return "entry.1628460829";
-                return "entry.2136849777"; // 三重區
+                return "entry.2136849777"; // 預設三重區
             };
 
             // 姓名即時驗證
@@ -144,7 +142,7 @@
                 }
             };
 
-            // 提交按鈕點擊攔截與背景 iframe 寫入
+            // 提交按鈕點擊驗證
             const handleSubmit = (e) => {
                 let hasError = false;
                 if (!name.trim() || nameError) hasError = true;
@@ -156,11 +154,7 @@
                     alert('請檢查輸入欄位（姓名、電話、車牌等）格式是否正確完整。');
                     return;
                 }
-
-                // 讓隱藏 iframe 接收 POST 請求，資料即可順利寫入 Google 試算表
-                setTimeout(() => {
-                    setSubmitted(true);
-                }, 600);
+                // 若驗證通過，表單將直接送往 Google 試算表寫入
             };
 
             return (
@@ -185,195 +179,174 @@
                         </div>
 
                         {/* 表單主體 */}
-                        {!submitted ? (
-                            <div>
-                                <div className="mb-6 text-center">
-                                    <h2 className="font-serif-tc text-lg font-bold text-[#162955]">請填寫以下回覆資訊</h2>
-                                    <p className="text-xs text-red-500 mt-1">* 表示必填問題</p>
+                        <div>
+                            <div className="mb-6 text-center">
+                                <h2 className="font-serif-tc text-lg font-bold text-[#162955]">請填寫以下回覆資訊</h2>
+                                <p className="text-xs text-red-500 mt-1">* 表示必填問題</p>
+                            </div>
+
+                            <form 
+                                action={GOOGLE_FORM_ACTION} 
+                                method="POST" 
+                                onSubmit={handleSubmit}
+                                className="space-y-6"
+                            >
+                                {/* 1. 行政區 */}
+                                <div>
+                                    <label className="block text-sm font-medium text-[#162955] mb-1">
+                                        行政區 <span className="text-red-500">*</span>
+                                    </label>
+                                    <select 
+                                        name={formEntries.district} 
+                                        value={selectedDistrict}
+                                        onChange={(e) => {
+                                            setSelectedDistrict(e.target.value);
+                                            setSelectedVillage("");
+                                        }}
+                                        required 
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm"
+                                    >
+                                        <option value="">選擇</option>
+                                        <option value="三重區">三重區</option>
+                                        <option value="五股區">五股區</option>
+                                        <option value="蘆洲區">蘆洲區</option>
+                                    </select>
                                 </div>
 
-                                <iframe name="hidden_iframe" id="hidden_iframe" style={{display: 'none'}}></iframe>
+                                {/* 2. 里別 (動態連動) */}
+                                <div>
+                                    <label className="block text-sm font-medium text-[#162955] mb-1">
+                                        {selectedDistrict ? selectedDistrict : "里別"} <span className="text-red-500">*</span>
+                                    </label>
+                                    <select 
+                                        name={getVillageEntryName()} 
+                                        value={selectedVillage}
+                                        onChange={(e) => setSelectedVillage(e.target.value)}
+                                        required 
+                                        disabled={!selectedDistrict}
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    >
+                                        <option value="">{selectedDistrict ? "選擇" : "請先選擇行政區"}</option>
+                                        {selectedDistrict && districtVillages[selectedDistrict]?.map((village, idx) => (
+                                            <option key={idx} value={village}>{village}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                                <form 
-                                    action={GOOGLE_FORM_ACTION} 
-                                    method="POST" 
-                                    target="hidden_iframe"
-                                    onSubmit={handleSubmit}
-                                    className="space-y-6"
-                                >
-                                    {/* 1. 行政區 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            行政區 <span className="text-red-500">*</span>
-                                        </label>
-                                        <select 
-                                            name={formEntries.district} 
-                                            value={selectedDistrict}
-                                            onChange={(e) => {
-                                                setSelectedDistrict(e.target.value);
-                                                setSelectedVillage("");
-                                            }}
-                                            required 
-                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm"
-                                        >
-                                            <option value="">選擇</option>
-                                            <option value="三重區">三重區</option>
-                                            <option value="五股區">五股區</option>
-                                            <option value="蘆洲區">蘆洲區</option>
-                                        </select>
+                                {/* 3. 出席狀況 */}
+                                <div>
+                                    <label className="block text-sm font-medium text-[#162955] mb-2">
+                                        出席狀況 <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="space-y-2">
+                                        {["里長親自出席", "委派代表出席", "不克出席"].map((status, idx) => (
+                                            <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
+                                                <input type="radio" name={formEntries.attendance} value={status} required className="mr-3 text-[#162955] focus:ring-[#162955]" /> 
+                                                {status}
+                                            </label>
+                                        ))}
                                     </div>
+                                </div>
 
-                                    {/* 2. 里別 (動態連動，對應正確的 entry ID) */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            {selectedDistrict ? selectedDistrict : "里別"} <span className="text-red-500">*</span>
-                                        </label>
-                                        <select 
-                                            name={getVillageEntryName()} 
-                                            value={selectedVillage}
-                                            onChange={(e) => setSelectedVillage(e.target.value)}
-                                            required 
-                                            disabled={!selectedDistrict}
-                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                        >
-                                            <option value="">{selectedDistrict ? "選擇" : "請先選擇行政區"}</option>
-                                            {selectedDistrict && districtVillages[selectedDistrict]?.map((village, idx) => (
-                                                <option key={idx} value={village}>{village}</option>
-                                            ))}
-                                        </select>
+                                {/* 4. 出席者姓名 */}
+                                <div>
+                                    <label className="block text-sm font-medium text-[#162955] mb-1">
+                                        出席者姓名 <span className="text-xs text-gray-500">(若為代表出席，請填寫代表人姓名。)</span> <span className="text-red-500">*</span>
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name={formEntries.name} 
+                                        value={name}
+                                        onChange={handleNameChange}
+                                        required 
+                                        placeholder="請輸入真實姓名" 
+                                        className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:outline-none bg-white text-sm ${nameError ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-[#162955]'}`}
+                                    />
+                                    {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
+                                </div>
+
+                                {/* 5. 聯絡電話 */}
+                                <div>
+                                    <label className="block text-sm font-medium text-[#162955] mb-1">
+                                        聯絡電話 (行動電話) <span className="text-red-500">*</span>
+                                    </label>
+                                    <input 
+                                        type="tel" 
+                                        maxLength="10"
+                                        name={formEntries.phone} 
+                                        value={phone}
+                                        onChange={handlePhoneChange}
+                                        required 
+                                        placeholder="請輸入 09 開頭的手機號碼（例：0912345678）" 
+                                        className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:outline-none bg-white text-sm ${phoneError ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-[#162955]'}`}
+                                    />
+                                    {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                                </div>
+
+                                {/* 6. 出席總人數 */}
+                                <div>
+                                    <label className="block text-sm font-medium text-[#162955] mb-2">
+                                        出席總人數（含里長/代表） <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="space-y-2">
+                                        {["1 人", "2 人", "3 人", "4 人以上", "0 人（不克出席）"].map((num, idx) => (
+                                            <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
+                                                <input type="radio" name={formEntries.totalPeople} value={num} required className="mr-3 text-[#162955] focus:ring-[#162955]" /> 
+                                                {num}
+                                            </label>
+                                        ))}
                                     </div>
+                                </div>
 
-                                    {/* 3. 出席狀況 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-2">
-                                            出席狀況 <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="space-y-2">
-                                            {["里長親自出席", "委派代表出席", "不克出席"].map((status, idx) => (
-                                                <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
-                                                    <input type="radio" name={formEntries.attendance} value={status} required className="mr-3 text-[#162955] focus:ring-[#162955]" /> 
-                                                    {status}
-                                                </label>
-                                            ))}
-                                        </div>
+                                {/* 7. 前往交通方式 */}
+                                <div>
+                                    <label className="block text-sm font-medium text-[#162955] mb-2">
+                                        前往交通方式 <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="space-y-2">
+                                        {["自行開車", "騎乘機車", "搭乘大眾運輸 / 步行"].map((mode, idx) => (
+                                            <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
+                                                <input 
+                                                    type="radio" 
+                                                    name={formEntries.transport} 
+                                                    value={mode} 
+                                                    onChange={(e) => setTransportMode(e.target.value)}
+                                                    required 
+                                                    className="mr-3 text-[#162955] focus:ring-[#162955]" 
+                                                /> 
+                                                {mode}
+                                            </label>
+                                        ))}
                                     </div>
+                                </div>
 
-                                    {/* 4. 出席者姓名 (附驗證) */}
-                                    <div>
+                                {/* 8. 汽車車牌號碼 */}
+                                {transportMode === "自行開車" && (
+                                    <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-200">
                                         <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            出席者姓名 <span className="text-xs text-gray-500">(若為代表出席，請填寫代表人姓名。)</span> <span className="text-red-500">*</span>
+                                            汽車車牌號碼 <span className="text-red-500">*</span>
                                         </label>
                                         <input 
                                             type="text" 
-                                            name={formEntries.name} 
-                                            value={name}
-                                            onChange={handleNameChange}
+                                            name={formEntries.carPlate} 
+                                            value={carPlate}
+                                            onChange={handleCarPlateChange}
                                             required 
-                                            placeholder="請輸入真實姓名" 
-                                            className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:outline-none bg-white text-sm ${nameError ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-[#162955]'}`}
+                                            placeholder="例：ABC-1234（以利園區安排車位）" 
+                                            className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:outline-none bg-white text-sm ${carPlateError ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-[#162955]'}`}
                                         />
-                                        {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
+                                        {carPlateError && <p className="text-xs text-red-500 mt-1">{carPlateError}</p>}
                                     </div>
+                                )}
 
-                                    {/* 5. 聯絡電話 (附 09 開頭純數字 10 碼驗證) */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-1">
-                                            聯絡電話 (行動電話) <span className="text-red-500">*</span>
-                                        </label>
-                                        <input 
-                                            type="tel" 
-                                            maxLength="10"
-                                            name={formEntries.phone} 
-                                            value={phone}
-                                            onChange={handlePhoneChange}
-                                            required 
-                                            placeholder="請輸入 09 開頭的手機號碼（例：0912345678）" 
-                                            className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:outline-none bg-white text-sm ${phoneError ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-[#162955]'}`}
-                                        />
-                                        {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
-                                    </div>
-
-                                    {/* 6. 出席總人數 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-2">
-                                            出席總人數（含里長/代表） <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="space-y-2">
-                                            {["1 人", "2 人", "3 人", "4 人以上", "0 人（不克出席）"].map((num, idx) => (
-                                                <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
-                                                    <input type="radio" name={formEntries.totalPeople} value={num} required className="mr-3 text-[#162955] focus:ring-[#162955]" /> 
-                                                    {num}
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* 7. 前往交通方式 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-[#162955] mb-2">
-                                            前往交通方式 <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="space-y-2">
-                                            {["自行開車", "騎乘機車", "搭乘大眾運輸 / 步行"].map((mode, idx) => (
-                                                <label key={idx} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50 text-sm transition">
-                                                    <input 
-                                                        type="radio" 
-                                                        name={formEntries.transport} 
-                                                        value={mode} 
-                                                        onChange={(e) => setTransportMode(e.target.value)}
-                                                        required 
-                                                        className="mr-3 text-[#162955] focus:ring-[#162955]" 
-                                                    /> 
-                                                    {mode}
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* 8. 汽車車牌號碼 (附格式驗證) */}
-                                    {transportMode === "自行開車" && (
-                                        <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-200">
-                                            <label className="block text-sm font-medium text-[#162955] mb-1">
-                                                汽車車牌號碼 <span className="text-red-500">*</span>
-                                            </label>
-                                            <input 
-                                                type="text" 
-                                                name={formEntries.carPlate} 
-                                                value={carPlate}
-                                                onChange={handleCarPlateChange}
-                                                required 
-                                                placeholder="例：ABC-1234（以利園區安排車位）" 
-                                                className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:outline-none bg-white text-sm ${carPlateError ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-[#162955]'}`}
-                                            />
-                                            {carPlateError && <p className="text-xs text-red-500 mt-1">{carPlateError}</p>}
-                                        </div>
-                                    )}
-
-                                    <button 
-                                        type="submit" 
-                                        className="w-full py-3.5 px-4 bg-[#162955] hover:bg-[#112044] text-white font-medium rounded-xl shadow-lg transition duration-200 tracking-wider text-base mt-4"
-                                    >
-                                        提交
-                                    </button>
-                                </form>
-                            </div>
-                        ) : (
-                            <div className="text-center py-12 space-y-4">
-                                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
-                                    ✓
-                                </div>
-                                <h3 className="font-serif-tc text-2xl font-bold text-[#162955]">感恩您的回覆</h3>
-                                <p className="text-gray-600 text-sm max-w-sm mx-auto">
-                                    您的出席回覆已順利送出並記錄。三重慈濟園區期待與您共敘一甲子之情！
-                                </p>
                                 <button 
-                                    onClick={() => setSubmitted(false)} 
-                                    className="mt-6 px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded-lg transition"
+                                    type="submit" 
+                                    className="w-full py-3.5 px-4 bg-[#162955] hover:bg-[#112044] text-white font-medium rounded-xl shadow-lg transition duration-200 tracking-wider text-base mt-4"
                                 >
-                                    填寫其他回覆
+                                    提交
                                 </button>
-                            </div>
-                        )}
+                            </form>
+                        </div>
 
                         <div className="text-center mt-8 pt-4 border-t border-amber-900/10 text-xs text-gray-500">
                             佛教慈濟慈善事業基金會 三重園區
