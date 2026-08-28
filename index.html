@@ -29,18 +29,37 @@
         input[type="radio"]:checked {
             accent-color: #162955;
         }
+        
+        /* 載入動畫 */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
+        // ==========================================
+        // ⚠️ 請替換為您部署的 Google Apps Script (Web App) 網址
+        // ==========================================
+        const SCRIPT_URL = 'https://docs.google.com/spreadsheets/d/1nceqJMYFxvVaTHdmPF3nldjbo6H2K7TE5j3rFlmymCQ/edit?gid=8307558#gid=8307558'; // 這裡先放您之前提供的網址作為範例，請務必更換成新試算表部署的網址
+
         function App() {
             const [submitted, setSubmitted] = React.useState(false);
             const [isSubmitting, setIsSubmitting] = React.useState(false);
             const [globalError, setGlobalError] = React.useState("");
             
-            // 所有欄位的狀態
+            // 表單欄位狀態
             const [selectedDistrict, setSelectedDistrict] = React.useState("");
             const [selectedVillage, setSelectedVillage] = React.useState("");
             const [attendance, setAttendance] = React.useState("");
@@ -95,7 +114,7 @@
             };
 
             const handlePhoneChange = (e) => {
-                const val = e.target.value.replace(/\D/g, ''); // 僅保留純數字，過濾 - 符號
+                const val = e.target.value.replace(/\D/g, ''); // 僅保留純數字
                 setPhone(val);
                 
                 if (val.length === 0) {
@@ -127,58 +146,51 @@
                 e.preventDefault();
                 setGlobalError("");
 
-                // 最終檢查所有必填項目與錯誤狀態
+                // 前端再次驗證
                 if (!selectedDistrict || !selectedVillage || !attendance || !totalPeople || !transportMode) {
-                    setGlobalError("請確認所有必填欄位（有 * 號者）皆已選擇或填寫完整。");
+                    setGlobalError("請確認所有必填欄位皆已選擇。");
                     return;
                 }
                 if (nameError || phoneError || (transportMode === "自行開車" && carPlateError) || !name || !phone || (transportMode === "自行開車" && !carPlate)) {
-                    setGlobalError("請檢查紅色提示，修正姓名、電話或車牌的格式錯誤。");
+                    setGlobalError("請修正欄位格式錯誤。");
                     return;
                 }
 
                 setIsSubmitting(true);
 
-                // 使用 URLSearchParams 精準構造表單格式
-                const submitParams = new URLSearchParams();
-                submitParams.append("entry.696777273", selectedDistrict);
-
-                // 根據行政區，將里別塞入正確的題目 ID 內
-                if (selectedDistrict === "三重區") submitParams.append("entry.2136849777", selectedVillage);
-                if (selectedDistrict === "蘆洲區") submitParams.append("entry.2102008597", selectedVillage);
-                if (selectedDistrict === "五股區") submitParams.append("entry.1628460829", selectedVillage);
-
-                submitParams.append("entry.1009888297", attendance);
-                submitParams.append("entry.702390885", name);
-                submitParams.append("entry.1503687082", phone);
-                submitParams.append("entry.570526933", totalPeople);
-                submitParams.append("entry.1794182272", transportMode);
-
-                if (transportMode === "自行開車") {
-                    submitParams.append("entry.1669492461", carPlate);
-                }
-
-                const GOOGLE_FORM_ACTION = "https://docs.google.com/forms/u/0/d/e/1FAIpQLSc9JeeRlbW0WuHfqHvzXtDFoF93E_zTgoPmuwj99oNmWD9mJw/formResponse";
+                // 準備傳送給 GAS 的 JSON 資料
+                const submitData = {
+                    district: selectedDistrict,
+                    village: selectedVillage,
+                    attendance: attendance,
+                    name: name,
+                    phone: phone,
+                    totalPeople: totalPeople,
+                    transportMode: transportMode,
+                    carPlate: transportMode === "自行開車" ? carPlate : "" 
+                };
 
                 try {
-                    // 使用 fetch 以背景方式提交，設定 mode: 'no-cors' 以規避跨網域阻擋
-                    await fetch(GOOGLE_FORM_ACTION, {
-                        method: "POST",
-                        mode: "no-cors",
-                        headers: {
-                            "Content-Type": "application/x-www-form-urlencoded"
-                        },
-                        body: submitParams.toString()
+                    // 使用 fetch 以 JSON 格式 POST 給 Google Apps Script
+                    const response = await fetch(SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify(submitData)
                     });
-
-                    // 無論回傳什麼 (opaque)，只要執行到這代表成功送出網路請求
-                    setIsSubmitting(false);
-                    setSubmitted(true);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    
+                    const result = await response.json();
+                    
+                    if(result.status === 'Success') {
+                        setIsSubmitting(false);
+                        setSubmitted(true);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    } else {
+                        throw new Error(result.message || '回傳狀態錯誤');
+                    }
 
                 } catch (error) {
+                    console.error('提交錯誤:', error);
                     setIsSubmitting(false);
-                    setGlobalError("提交失敗，請檢查網路連線後再試一次。");
+                    setGlobalError("提交失敗，請檢查網路連線或稍後再試。");
                 }
             };
 
@@ -186,7 +198,6 @@
                 <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center">
                     <div className="max-w-xl w-full card-bg rounded-2xl shadow-xl overflow-hidden p-6 sm:p-10 relative border-t-[6px] border-t-[#162955]">
                         
-                        {/* 標題與說明區 */}
                         <div className="text-center mb-8 border-b border-amber-900/10 pb-6">
                             <h1 className="font-serif-tc text-3xl sm:text-4xl font-bold text-[#162955] tracking-wide mb-4">
                                 「慈濟一甲子・感恩里長情」茶會出席回覆單
@@ -203,7 +214,6 @@
                             </div>
                         </div>
 
-                        {/* 表單主體 */}
                         {!submitted ? (
                             <div>
                                 <div className="mb-6">
@@ -211,7 +221,6 @@
                                 </div>
 
                                 <form onSubmit={handleSubmit} className="space-y-7">
-                                    
                                     {/* 1. 行政區 */}
                                     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                         <label className="block text-[15px] font-medium text-gray-800 mb-3">
@@ -228,7 +237,7 @@
                                                             setSelectedDistrict(e.target.value);
                                                             setSelectedVillage("");
                                                         }}
-                                                        className="w-4 h-4 text-[#162955] border-gray-300 focus:ring-[#162955] focus:ring-offset-1 cursor-pointer"
+                                                        className="w-4 h-4 text-[#162955] border-gray-300 focus:ring-[#162955] cursor-pointer"
                                                     />
                                                     <span className="ml-3 text-sm text-gray-700 group-hover:text-black">{dist}</span>
                                                 </label>
@@ -236,7 +245,7 @@
                                         </div>
                                     </div>
 
-                                    {/* 2. 里別 (動態連動) */}
+                                    {/* 2. 里別 */}
                                     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                         <label className="block text-[15px] font-medium text-gray-800 mb-3">
                                             {selectedDistrict ? selectedDistrict : "里別"} <span className="text-red-500">*</span>
@@ -245,7 +254,7 @@
                                             value={selectedVillage}
                                             onChange={(e) => setSelectedVillage(e.target.value)}
                                             disabled={!selectedDistrict}
-                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:border-[#162955] outline-none bg-white text-sm disabled:bg-gray-50 disabled:cursor-not-allowed transition"
+                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#162955] focus:outline-none bg-white text-sm disabled:bg-gray-50 disabled:cursor-not-allowed transition"
                                         >
                                             <option value="">{selectedDistrict ? "請選擇里別" : "請先選擇上方的行政區"}</option>
                                             {selectedDistrict && districtVillages[selectedDistrict]?.map((village, idx) => (
@@ -275,7 +284,7 @@
                                         </div>
                                     </div>
 
-                                    {/* 4. 出席者姓名 */}
+                                    {/* 4. 姓名 */}
                                     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                         <label className="block text-[15px] font-medium text-gray-800 mb-1">
                                             出席者姓名 <span className="text-red-500">*</span>
@@ -291,7 +300,7 @@
                                         {nameError && <p className="text-xs text-red-500 mt-2 flex items-center"><span className="mr-1">⚠️</span>{nameError}</p>}
                                     </div>
 
-                                    {/* 5. 聯絡電話 */}
+                                    {/* 5. 電話 */}
                                     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                         <label className="block text-[15px] font-medium text-gray-800 mb-3">
                                             聯絡電話 (行動電話) <span className="text-red-500">*</span>
@@ -307,7 +316,7 @@
                                         {phoneError && <p className="text-xs text-red-500 mt-2 flex items-center"><span className="mr-1">⚠️</span>{phoneError}</p>}
                                     </div>
 
-                                    {/* 6. 出席總人數 */}
+                                    {/* 6. 人數 */}
                                     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                         <label className="block text-[15px] font-medium text-gray-800 mb-3">
                                             出席總人數（含里長/代表） <span className="text-red-500">*</span>
@@ -328,7 +337,7 @@
                                         </div>
                                     </div>
 
-                                    {/* 7. 前往交通方式 */}
+                                    {/* 7. 交通 */}
                                     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                         <label className="block text-[15px] font-medium text-gray-800 mb-3">
                                             前往交通方式 <span className="text-red-500">*</span>
@@ -349,7 +358,7 @@
                                         </div>
                                     </div>
 
-                                    {/* 8. 汽車車牌號碼 */}
+                                    {/* 8. 車牌 */}
                                     {transportMode === "自行開車" && (
                                         <div className="bg-[#fcfaf5] p-5 rounded-xl border border-amber-200 shadow-sm animate-fade-in">
                                             <label className="block text-[15px] font-medium text-[#162955] mb-1">
@@ -366,7 +375,7 @@
                                         </div>
                                     )}
 
-                                    {/* 提交錯誤訊息 */}
+                                    {/* 錯誤提示與提交 */}
                                     {globalError && (
                                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm font-medium text-center">
                                             {globalError}
@@ -376,9 +385,11 @@
                                     <button 
                                         type="submit" 
                                         disabled={isSubmitting}
-                                        className="w-full py-3.5 px-4 bg-[#162955] hover:bg-[#1f3770] disabled:bg-[#162955]/70 text-white font-medium rounded-xl shadow-md transition duration-200 tracking-wider text-base mt-2"
+                                        className="w-full py-3.5 px-4 bg-[#162955] hover:bg-[#1f3770] disabled:bg-[#162955]/70 text-white font-medium rounded-xl shadow-md transition duration-200 tracking-wider text-base mt-2 flex justify-center items-center"
                                     >
-                                        {isSubmitting ? "正在送出回覆..." : "提交"}
+                                        {isSubmitting ? (
+                                            <><span className="spinner"></span> 正在送出回覆...</>
+                                        ) : "提交"}
                                     </button>
                                 </form>
                             </div>
@@ -389,11 +400,20 @@
                                 </div>
                                 <h3 className="font-serif-tc text-2xl font-bold text-[#162955]">感恩您的回覆</h3>
                                 <p className="text-gray-600 text-sm max-w-sm mx-auto">
-                                    您的出席回覆已順利送出。三重慈濟園區期待與您共敘一甲子之情！
+                                    您的出席回覆已順利送出。<br/>三重慈濟園區期待與您共敘一甲子之情！
                                 </p>
                                 <button 
                                     onClick={() => {
                                         setSubmitted(false);
+                                        // 清空表單
+                                        setSelectedDistrict("");
+                                        setSelectedVillage("");
+                                        setAttendance("");
+                                        setName("");
+                                        setPhone("");
+                                        setTotalPeople("");
+                                        setTransportMode("");
+                                        setCarPlate("");
                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                     }} 
                                     className="mt-6 px-6 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition"
@@ -403,7 +423,6 @@
                             </div>
                         )}
 
-                        {/* 頁尾署名區 */}
                         <div className="text-center mt-10 pt-4 border-t border-amber-900/10 text-xs text-gray-500 tracking-wide">
                             佛教慈濟慈善事業基金會 三重園區
                         </div>
