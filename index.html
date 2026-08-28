@@ -49,7 +49,6 @@
             const [phoneError, setPhoneError] = React.useState("");
             const [carPlateError, setCarPlateError] = React.useState("");
 
-            // 完整對應 Google 表單的里別資料庫
             const districtVillages = {
                 "三重區": [
                     "二重里", "三重里", "三安里", "三和里", "三民里", "大同里", "大安里", "大有里", "大園里", "大智里", 
@@ -97,7 +96,6 @@
                 return "entry.2136849777"; // 預設三重區
             };
 
-            // 姓名即時驗證
             const handleNameChange = (e) => {
                 const val = e.target.value;
                 setName(val);
@@ -110,9 +108,8 @@
                 }
             };
 
-            // 電話格式驗證（只能是純數字，必須以 09 開頭共 10 碼）
             const handlePhoneChange = (e) => {
-                const val = e.target.value.replace(/\D/g, ''); // 過濾非數字
+                const val = e.target.value.replace(/\D/g, ''); // 僅保留數字
                 setPhone(val);
                 
                 if (val.length === 0) {
@@ -126,7 +123,6 @@
                 }
             };
 
-            // 車牌格式驗證（自動轉大寫，符合台灣車牌）
             const handleCarPlateChange = (e) => {
                 const val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
                 setCarPlate(val);
@@ -145,7 +141,6 @@
                 }
             };
 
-            // 提交按鈕點擊驗證與背景送出
             const handleSubmit = async (e) => {
                 e.preventDefault();
 
@@ -153,6 +148,10 @@
                 if (!name.trim() || nameError) hasError = true;
                 if (!phone.trim() || phoneError) hasError = true;
                 if (transportMode === "自行開車" && (!carPlate.trim() || carPlateError)) hasError = true;
+                if (!selectedDistrict || !selectedVillage) {
+                    alert('請完整選擇行政區與里別');
+                    return;
+                }
 
                 if (hasError) {
                     alert('請檢查輸入欄位（姓名、電話、車牌等）格式是否正確完整。');
@@ -161,24 +160,31 @@
 
                 setIsSubmitting(true);
 
-                // 收集表單資料
-                const formData = new FormData(e.target);
-                // 確保動態里別欄位正確代入
+                // 收集表單資料並透過 URLSearchParams 格式化
+                const formElement = e.target;
+                const formData = new URLSearchParams();
+                
+                const rawFormData = new FormData(formElement);
+                for (const [key, value] of rawFormData.entries()) {
+                    formData.append(key, value);
+                }
+                // 手動補上動態里別對應值
                 formData.append(getVillageEntryName(), selectedVillage);
 
                 try {
-                    // 使用 no-cors 模式背景送往 Google 試算表
                     await fetch(GOOGLE_FORM_ACTION, {
                         method: 'POST',
                         mode: 'no-cors',
-                        body: formData
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: formData.toString()
                     });
 
-                    // 成功送出後切換至感謝畫面
                     setIsSubmitting(false);
                     setSubmitted(true);
                 } catch (error) {
-                    // 即使發生網路跨域阻擋異常，no-cors 通常也會成功寫入後端
+                    // 即使發生跨域網路封包攔截，no-cors 通常也能順利送達後端
                     setIsSubmitting(false);
                     setSubmitted(true);
                 }
