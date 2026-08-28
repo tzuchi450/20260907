@@ -50,8 +50,11 @@
             // 輸入欄位狀態與錯誤提示
             const [name, setName] = useState('');
             const [phone, setPhone] = useState('');
+            const [carPlate, setCarPlate] = useState('');
+            
             const [nameError, setNameError] = useState('');
             const [phoneError, setPhoneError] = useState('');
+            const [carPlateError, setCarPlateError] = useState('');
 
             // 行政區與里別對應資料庫
             const districtVillages = {
@@ -116,12 +119,8 @@
             // 電話格式驗證（只能是純數字，且必須為 09 開頭的手機號碼 10 碼）
             const handlePhoneChange = (e) => {
                 const val = e.target.value;
-                // 過濾掉非數字字元，禁止輸入 - 或英文字母
                 const numericVal = val.replace(/\D/g, '');
                 setPhone(numericVal);
-
-                // 檢查是否為 09 開頭且總共 10 碼的純手機號碼
-                const mobileRegex = /^09\d{8}$/;
                 
                 if (numericVal.length === 0) {
                     setPhoneError('請輸入聯絡電話');
@@ -134,11 +133,37 @@
                 }
             };
 
+            // 車牌號碼格式驗證 (自動轉大寫，符合台灣車牌格式)
+            const handleCarPlateChange = (e) => {
+                const val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+                setCarPlate(val);
+
+                // 台灣標準車牌正則表達式 (支援 5-7 碼及含橫槓格式，例如 ABC-1234, ABC1234, 1234-ABC)
+                const plateRegex = /^([A-Z0-9]{2,4}-?[A-Z0-9]{2,4})$/;
+
+                if (transportMode === "自行開車") {
+                    if (val.trim().length === 0) {
+                        setCarPlateError('請輸入汽車車牌號碼');
+                    } else if (!plateRegex.test(val) || val.length < 5 || val.length > 8) {
+                        setCarPlateError('車牌格式有誤（例：ABC-1234 或 ABC1234）');
+                    } else {
+                        setCarPlateError('');
+                    }
+                } else {
+                    setCarPlateError('');
+                }
+            };
+
             const handleSubmit = (e) => {
                 // 再次檢查驗證
-                if (!name.trim() || nameError || !phone.trim() || phoneError) {
+                let hasError = false;
+                if (!name.trim() || nameError) hasError = true;
+                if (!phone.trim() || phoneError) hasError = true;
+                if (transportMode === "自行開車" && (!carPlate.trim() || carPlateError)) hasError = true;
+
+                if (hasError) {
                     e.preventDefault();
-                    alert('請確認姓名與手機號碼格式是否正確。');
+                    alert('請確認必填欄位（姓名、電話、車牌等）格式是否正確。');
                     return;
                 }
 
@@ -368,7 +393,7 @@
                                             </div>
                                         </div>
 
-                                        {/* 汽車車牌號碼 (連動顯示) */}
+                                        {/* 汽車車牌號碼 (帶格式驗證與自動大寫) */}
                                         {transportMode === "自行開車" && (
                                             <div className="bg-[#f7f5ef] p-4 rounded-xl border border-[#d4af37]/40 animate-fadeIn">
                                                 <label className="block text-sm font-medium text-[#162955] mb-1">
@@ -377,10 +402,13 @@
                                                 <input 
                                                     type="text" 
                                                     name={formEntries.carPlate} 
+                                                    value={carPlate}
+                                                    onChange={handleCarPlateChange}
                                                     required 
-                                                    placeholder="例：ABC1234 (以利園區安排車位)" 
-                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#162955] focus:outline-none transition bg-white text-sm"
+                                                    placeholder="例：ABC-1234 (以利園區安排車位)" 
+                                                    className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:outline-none transition bg-white text-sm ${carPlateError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-200 focus:ring-[#162955]'}`}
                                                 />
+                                                {carPlateError && <p className="text-xs text-rose-500 mt-1 pl-1">{carPlateError}</p>}
                                             </div>
                                         )}
 
